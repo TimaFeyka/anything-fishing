@@ -1,0 +1,54 @@
+# Render Blueprint для ANYTHING FISHING.
+# Один Web Service (Node + Express + WS + статика Vite) и один PostgreSQL.
+# Применить: Render Dashboard → New → Blueprint → выбрать этот репозиторий.
+services:
+  - type: web
+    name: anything-fishing
+    runtime: node
+    plan: starter # free тоже работает, но сервис засыпает
+    region: frankfurt
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: anything-fishing-db
+          property: connectionString
+      - key: PGSSL
+        value: "0"
+      - key: ALLOW_DEV_AUTH
+        value: "0"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: NPC_FULL_LIMIT
+        value: "100"
+      - key: NPC_HALF_LIMIT
+        value: "100"
+      - key: SERIAL_RETURN_DAYS
+        value: "60"
+      - key: MARKET_FEE
+        value: "0.05"
+      - key: STARS_ENABLED
+        value: "1"
+      # Заполните вручную в Dashboard (sync: false — Render не перезапишет):
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false
+      - key: TELEGRAM_APP_SHORT_NAME
+        sync: false
+      - key: PUBLIC_URL
+        sync: false
+
+databases:
+  - name: anything-fishing-db
+    plan: basic-256mb # free-план Render Postgres живёт ограниченное время
+    databaseName: anything_fishing
+    user: anything

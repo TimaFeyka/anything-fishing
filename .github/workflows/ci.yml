@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Типы (сервер и клиент)
+        run: npm run typecheck
+      - name: Сборка (Vite + tsc)
+        run: npm run build
+      - name: Модульные тесты движка
+        run: node scripts/engine-test.mjs
+      - name: Сквозной тест API
+        run: |
+          DATA_DIR="$RUNNER_TEMP/af-data" ALLOW_DEV_AUTH=1 PORT=8787 NODE_ENV=development node dist/index.js &
+          sleep 3
+          node scripts/smoke.mjs http://127.0.0.1:8787 "$RUNNER_TEMP/af-data/state.json"
