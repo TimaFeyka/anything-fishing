@@ -309,9 +309,9 @@ export class FightSession {
 }
 
 // ─────────────────────────────── Создание / разрешение попытки ───────────────────────────────
-export function createCast(player: PlayerDoc, locationId: string, castType: CastType): CastDoc {
+export function createCast(player: PlayerDoc, locationId: string, castType: CastType, seedOverride?: string): CastDoc {
   const id = crypto.randomUUID();
-  const seed = newSeed();
+  const seed = seedOverride ?? newSeed();
   const rng = new Rng(`${seed}:loot`);
   const rolled = rollCast(player, locationId, castType, rng);
   const doc: CastDoc = {

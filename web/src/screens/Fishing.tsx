@@ -57,7 +57,7 @@ export function FishingScreen() {
 
       {!shore ? (
         <>
-          <div className="scene water">
+          <div className={`scene water ${phase === 'fight' ? 'short' : ''}`}>
             <WaterScene
               location={location}
               floatX={50}
@@ -69,7 +69,7 @@ export function FishingScreen() {
             />
             <div style={{ position: 'absolute', left: 10, right: 10, bottom: 8 }}>
               {phase === 'idle' && (
-                <div className="row" style={{ gap: 6 }}>
+                <div className="chips">
                   {(content?.castTypes ? Object.entries(content.castTypes) : []).map(([id, c]: any) => (
                     <button key={id} className={`chip ${castType === id ? 'on' : ''}`} onClick={() => { haptic.select(); setCastType(id); }} title={c.desc}>
                       {c.icon} {c.name}
@@ -82,7 +82,7 @@ export function FishingScreen() {
             </div>
           </div>
 
-          <div className="row between mt" style={{ gap: 8 }}>
+          <div className="row wrap between mt" style={{ gap: 6 }}>
             <span className="pill">Наживка: {baitDef?.name ?? '—'} · {baitLeft}</span>
             <span className="pill">Снасть: {Math.min(content?.gear?.find((g: any) => g.id === player.loadout?.rod)?.maxLoad ?? 4, content?.gear?.find((g: any) => g.id === player.loadout?.line)?.maxLoad ?? 2)} кг</span>
             <button className="btn tiny ghost" onClick={() => { setShore(true); haptic.select(); }}>На берег <Glyph name="back" size={14} /></button>

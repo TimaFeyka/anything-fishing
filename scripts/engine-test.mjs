@@ -54,21 +54,19 @@ const ev = activeEvents();
 ok('события недели детерминированы', JSON.stringify(ev) === JSON.stringify(activeEvents()));
 ok('событие недели выбрано', ev.length >= 1, ev.map((e) => e.name).join(', '));
 
-console.log('\n[4] Серверное расписание и повтор вываживания');
+console.log('\n[4] Авторитетное вытеснение: воспроизводимость, skill и снасть');
 {
   const { applyPhysics, PHYS } = await import('../dist/physics.js');
-  const p2 = newPlayer('dev:test2', 'Тест2');
-  let landed = 0; let attempts = 0; let stable = true; let landedCore = null;
-  for (let n = 0; n < 12; n++) {
-    const cast = createCast(p2, n % 3 === 0 ? 'abyss' : 'harbor', n % 2 ? 'normal' : 'deep');
+  const base = newPlayer('dev:test2', 'Тест2');
+  base.locations = LOCATIONS.map((l) => l.id);
+
+  // «Идеальный игрок»: держит натяжение в рабочей зоне, реагирует мгновенно
+  const playIdeal = (cast) => {
     const events = simulateFight(cast.params, cast.seed, []).events;
     const p = { strength: cast.params.strength, maxLoad: cast.params.maxLoad, control: cast.params.control, speed: cast.params.speed, depth: cast.params.depth, giant: cast.params.giant };
-    // «Идеальный игрок»: держит натяжение в рабочей зоне, зная только текущее состояние.
     let core = { t: 0, tension: 0.15, progress: 0, integrity: 1, stamina: 1, slack: 0 };
     const log = [];
-    let reeling = false;
-    let outcome = null;
-    attempts++;
+    let reeling = false; let outcome = null;
     while (!outcome && core.t < PHYS.MAX_MS) {
       const tick = core.t + PHYS.TICK;
       const ev = events.find((e) => tick >= e.start && tick < e.start + e.duration);
@@ -82,20 +80,46 @@ console.log('\n[4] Серверное расписание и повтор вы�
       const r = applyPhysics(core, p, PHYS.TICK, reeling, power);
       core = r.core; outcome = r.outcome;
     }
-    const a = simulateFight(cast.params, cast.seed, log);
-    const b = simulateFight(cast.params, cast.seed, log);
-    if (JSON.stringify(a.core) !== JSON.stringify(b.core) || a.outcome !== b.outcome) stable = false;
-    if (a.outcome === 'land') { landed++; landedCore = a; }
-    if (n === 0) {
-      ok('секретного расписания нет в ответе /cast', cast.events === undefined);
-      ok('обязательство (commitment) выдаётся', typeof cast.commitment === 'string' && cast.commitment.length === 64);
-      const cheat = simulateFight(cast.params, 'другой-seed', log);
-      ok('подмена seed меняет симуляцию', JSON.stringify(cheat.core) !== JSON.stringify(a.core));
+    return { outcome, log, core };
+  };
+
+  const trial = (player, loc, n, seedPrefix = 'test') => {
+    let land = 0; let stable = true;
+    for (let i = 0; i < n; i++) {
+      const cast = createCast(player, loc, i % 2 ? 'normal' : 'deep', `${seedPrefix}-${i}`);
+      const { outcome, log, core } = playIdeal(cast);
+      const a = simulateFight(cast.params, cast.seed, log);
+      const b = simulateFight(cast.params, cast.seed, log);
+      if (JSON.stringify(a.core) !== JSON.stringify(b.core) || a.outcome !== b.outcome) stable = false;
+      if (outcome === 'land') { land++; if (core.progress < 0.999) stable = false; }
+      if (i === 0) {
+        ok('секретного расписания нет в ответе /cast', cast.events === undefined);
+        ok('обязательство (commitment) выдаётся', typeof cast.commitment === 'string' && cast.commitment.length === 64);
+        const cheat = simulateFight(cast.params, 'другой-seed', log);
+        ok('подмена seed меняет симуляцию', JSON.stringify(cheat.core) !== JSON.stringify(a.core));
+      }
     }
-  }
-  ok('повтор даёт идентичный результат (12 боёв)', stable);
-  ok('грамотное вываживание вытаскивает добычу', landed > 0, `${landed} из ${attempts} боёв закончились выловом`);
-  ok('выловленный бой содержит прогресс 1.0', !landedCore || landedCore.core.progress >= 0.999);
+    return { land, n, stable };
+  };
+
+  const starter = { ...base, loadout: { rod: 'rod_bamboo', reel: 'reel_simple', line: 'line_2', hook: 'hook_small', bait: 'bait_worm', net: 'net_basic', boat: 'boat_none', device: 'device_none' } };
+  const top = { ...base, loadout: { rod: 'rod_alien', reel: 'reel_abyss', line: 'line_400', hook: 'hook_void', bait: 'bait_alien', net: 'net_giant', boat: 'boat_bathyscaphe', device: 'device_void' } };
+
+  const easy = trial(starter, 'lake', 12, 'lake');
+  ok('повтор даёт идентичный результат (12 боёв)', easy.stable);
+  ok('идеальная игра со стартовой снастью вытаскивает обычную добычу', easy.land >= 10, `${easy.land} из ${easy.n}`);
+  const topEasy = trial(top, 'lake', 12, 'lake');
+  ok('та же добыча топовой снастью тоже вытаскивается', topEasy.land >= 10, `${topEasy.land} из ${topEasy.n}`);
+
+  // Правило снасти: одна и та же добыча, разная леска
+  const heavy = { strength: 12, maxLoad: 2, stamina: 40, erratic: 0.7, segments: 10, control: 1.2, speed: 1.2, depth: 5, giant: true };
+  const weak = playIdeal({ params: heavy, seed: 'gear-check' });
+  const strong = playIdeal({ params: { ...heavy, maxLoad: 400 }, seed: 'gear-check' });
+  ok('добыча тяжелее снасти в разы не вытаскивается', weak.outcome !== 'land', `исход: ${weak.outcome}, остаток лески ${weak.core.integrity.toFixed(2)}`);
+  const stubborn = simulateFight(heavy, 'gear-check', [{ a: 'REEL', t: 0, dt: 0 }]);
+  ok('если тянуть перегруженную снасть до конца, леска рвётся', stubborn.outcome === 'break', `исход: ${stubborn.outcome} за ${(stubborn.core.t / 1000).toFixed(1)} с`);
+  ok('та же добыча при подходящей снасти вытаскивается', strong.outcome === 'land', `исход: ${strong.outcome} за ${(strong.core.t / 1000).toFixed(1)} с`);
+  ok('снасть влияет на результат сильнее, чем везение', strong.outcome === 'land' && weak.outcome !== 'land');
 }
 
 console.log('\n[5] Идемпотентность серийных номеров');

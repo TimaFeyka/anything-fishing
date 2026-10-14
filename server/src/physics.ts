@@ -89,17 +89,20 @@ export function applyPhysics(
     c.stamina = Math.min(1, c.stamina + dt * 0.012);
   }
 
+  // Слишком слабая снасть: отпускание почти не помогает — добыча продолжает тянуть.
+  const releaseEase = Math.max(0.3, 1 - overload * 0.2);
+
   // Натяжение
   if (reeling) {
-    c.tension += dt * (PHYS.REEL_TENSION + effectivePower * (0.95 + p.depth * 0.05) - p.control * 0.09 + overload * 0.28);
+    c.tension += dt * (PHYS.REEL_TENSION + effectivePower * (0.95 + p.depth * 0.05) - p.control * 0.09 + overload * 0.34);
   } else {
-    c.tension += dt * (PHYS.RELEASE_TENSION * (1 + overload * 0.25) - p.control * 0.03 + effectivePower * 0.2);
+    c.tension += dt * (PHYS.RELEASE_TENSION * releaseEase - p.control * 0.03 + effectivePower * 0.2);
   }
   c.tension = Math.max(PHYS.TENSION_MIN, Math.min(PHYS.TENSION_MAX, c.tension));
 
-  // Прогресс подтягивания
+  // Прогресс подтягивания (глубина слегка сопротивляется)
   if (reeling) {
-    c.progress += dt * PHYS.REEL_PROGRESS * p.speed * (1 - 0.42 * effectivePower) * (c.stamina < 0.25 ? 1.35 : 1);
+    c.progress += dt * PHYS.REEL_PROGRESS * p.speed * (1 - 0.42 * effectivePower) * (1 - 0.025 * Math.max(0, p.depth - 1)) * (c.stamina < 0.25 ? 1.35 : 1);
   } else {
     c.progress += dt * (PHYS.RELEASE_PROGRESS + effectivePower * 0.01);
   }
@@ -108,9 +111,11 @@ export function applyPhysics(
   // Прочность лески
   if (c.tension > PHYS.INTEGRITY_SOFT) {
     const k = (c.tension - PHYS.INTEGRITY_SOFT) / (PHYS.TENSION_MAX - PHYS.INTEGRITY_SOFT);
-    c.integrity -= dt * (0.22 * k * (1 + overload * 1.6));
+    c.integrity -= dt * (0.22 * k * (1 + overload * 2.2));
   }
-  if (c.tension >= 1) c.integrity -= dt * 0.75 * (1 + overload * 1.4);
+  if (c.tension >= 1) c.integrity -= dt * 0.75 * (1 + overload * 1.6);
+  // Перегруженная снасть рвётся постепенно, пока игрок вытягивает добычу
+  if (reeling && overload > 0.15) c.integrity -= dt * 0.09 * overload;
 
   // Провисание: долго без натяжения — добыча сходит с крючка
   if (!reeling && c.tension < PHYS.SLIP_TENSION) c.slack += dt;

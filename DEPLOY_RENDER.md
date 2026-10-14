@@ -204,12 +204,14 @@ curl -s -o /dev/null -w "%{http_code}\n" https://<имя-сервиса>.onrende
 ```bash
 npm ci
 npm run typecheck          # типы сервера и клиента
-npm test                   # 29 модульных тестов движка
+npm test                   # 36 модульных тестов движка
+npm run test:balance       # баланс мини-игры (детерминированные сиды)
 npm run build
 ALLOW_DEV_AUTH=1 PORT=8787 npm start
 # в другом терминале:
 npm run test:api -- http://127.0.0.1:8787
 npm run test:ws  -- http://127.0.0.1:8787
+npm run test:ui  -- http://127.0.0.1:8787/ ./shots 390 844 fight
 ```
 
-Все три набора должны завершиться без провалов — тогда деплой на Render пройдёт без сюрпризов.
+Все наборы должны завершиться без провалов — тогда деплой на Render пройдёт без сюрпризов.
