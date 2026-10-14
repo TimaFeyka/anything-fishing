@@ -23,8 +23,20 @@ jobs:
         run: node scripts/engine-test.mjs
       - name: Баланс мини-игры
         run: node scripts/balance-test.mjs
-      - name: Сквозной тест API
+      - name: Слой PostgreSQL (PGLite, протокол Postgres)
+        run: node scripts/pg-test.mjs
+      - name: Сквозной тест API (файловое хранилище)
         run: |
           DATA_DIR="$RUNNER_TEMP/af-data" ALLOW_DEV_AUTH=1 PORT=8787 NODE_ENV=development node dist/index.js &
           sleep 3
           node scripts/smoke.mjs http://127.0.0.1:8787 "$RUNNER_TEMP/af-data/state.json"
+      - name: Сквозной тест API (PostgreSQL)
+        run: |
+          node scripts/pg-server.mjs "$RUNNER_TEMP/af-pg" 55434 &
+          sleep 4
+          DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:55434/postgres" PGSSL=0 \
+            ALLOW_DEV_AUTH=1 PORT=8788 NODE_ENV=development node dist/index.js &
+          sleep 6
+          curl -s http://127.0.0.1:8788/api/health
+          node scripts/smoke.mjs http://127.0.0.1:8788 "$RUNNER_TEMP/af-pg-state.json" \
+            "postgresql://postgres:postgres@127.0.0.1:55434/postgres"
