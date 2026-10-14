@@ -92,9 +92,14 @@ npm run dev               # сервер на :8787 + Vite на :5173
 Прод-сборка и запуск одним процессом (так же работает на Render):
 
 ```bash
+npm ci --include=dev      # --include=dev обязателен: Render собирает с NODE_ENV=production
 npm run build             # Vite → dist/public, tsc → dist/*.js
 npm start                 # Express + WS + статика на PORT (по умолчанию 8787)
 ```
+
+> В репозитории лежит `.npmrc` с `include=dev` — он заставляет npm ставить devDependencies
+> (Vite, TypeScript) даже при `NODE_ENV=production`, иначе сборка на хостинге падает
+> с `vite: not found`.
 
 Играть внутри Telegram:
 

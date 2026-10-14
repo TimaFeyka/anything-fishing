@@ -8,7 +8,9 @@ services:
     plan: starter # free тоже работает, но сервис засыпает
     region: frankfurt
     branch: main
-    buildCommand: npm ci && npm run build
+    # --include=dev обязателен: Render собирает с NODE_ENV=production, и без флага
+    # npm не поставит devDependencies (Vite, TypeScript) → "vite: not found".
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true

@@ -68,7 +68,7 @@ Dashboard → **New +** → **Web Service** → выберите репозит�
 | Region | Frankfurt (ближе к аудитории) |
 | Branch | `main` |
 | Runtime | `Node` |
-| Build Command | `npm ci && npm run build` |
+| Build Command | `npm ci --include=dev && npm run build` |
 | Start Command | `npm start` |
 | Health Check Path | `/api/health` |
 | Auto-Deploy | `Yes` |
@@ -224,6 +224,8 @@ curl -s -o /dev/null -w "%{http_code}\n" https://<имя-сервиса>.onrende
 
 | Симптом | Причина и решение |
 |---|---|
+| `sh: 1: vite: not found` (сборка падает сразу после `npm install`) | Render собирает с `NODE_ENV=production`, а npm в этом режиме **не ставит devDependencies** — Vite и TypeScript лежат именно там. Решение: Build Command = `npm ci --include=dev && npm run build`. Дополнительно в репозитории есть `.npmrc` с `include=dev`, поэтому сборка проходит и с дефолтной командой Render. После правки нажмите **Clear build cache & deploy** |
+| `tsc: not found` при `npm run build:server` | Та же причина, что выше: TypeScript — devDependency. Лечится тем же `--include=dev` |
 | `401 unauthorized`, экран «Не удалось авторизоваться» | приложение открыто в браузере, а не в Telegram, либо `ALLOW_DEV_AUTH=0`. Откройте через бота; для локальной отладки поставьте `ALLOW_DEV_AUTH=1` |
 | `invalid_init_data` | `TELEGRAM_BOT_TOKEN` от другого бота. Токен и Mini App должны принадлежать одному боту |
 | Healthcheck падает, сервис перезапускается | не задан `DATABASE_URL` при `NODE_ENV=production`, либо неверный `PGSSL` (для внешнего URL нужен `1`) |
