@@ -21,6 +21,8 @@ jobs:
         run: npm run build
       - name: Модульные тесты движка
         run: node scripts/engine-test.mjs
+      - name: Баланс мини-игры
+        run: node scripts/balance-test.mjs
       - name: Сквозной тест API
         run: |
           DATA_DIR="$RUNNER_TEMP/af-data" ALLOW_DEV_AUTH=1 PORT=8787 NODE_ENV=development node dist/index.js &
