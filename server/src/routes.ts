@@ -243,7 +243,20 @@ export function createApi(ctx: Ctx): Router {
 
   // ── health ──
   api.get('/health', h(async (_req, res) => {
-    res.json({ ok: true, store: ctx.store.kind, db: await ctx.store.health(), uptime: Math.round(process.uptime()), version: '1.0.0' });
+    const dbConfigured = !!process.env.DATABASE_URL?.trim();
+    const postgres = ctx.store.kind === 'postgres';
+    res.json({
+      ok: true,
+      store: ctx.store.kind,
+      db: await ctx.store.health(),
+      dbConfigured,
+      storage: postgres ? 'postgres' : dbConfigured ? 'file-fallback (DATABASE_URL не сработал)' : 'file (DATABASE_URL не задан)',
+      warning: !postgres && dbConfigured
+        ? 'PostgreSQL недоступен: игра работает, но прогресс не сохранится между деплоями. Смотрите логи сервиса.'
+        : undefined,
+      uptime: Math.round(process.uptime()),
+      version: '1.0.0',
+    });
   }));
 
   // ── авторизация ──

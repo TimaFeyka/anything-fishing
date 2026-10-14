@@ -14,7 +14,7 @@ import { WebSocketServer } from 'ws';
 import 'dotenv/config';
 
 import { createApi, fightSessions, runSerialSweep } from './routes.js';
-import { createStore } from './store.js';
+import { MemoryKv, createStore, type KvStore } from './store.js';
 import { FightSession } from './engine.js';
 import { SESSION_SECRET, userFromInitData, validateInitData, verifySession, BOT_TOKEN } from './tg.js';
 import type { PlayerDoc } from './types.js';
@@ -24,7 +24,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 8787);
 
 async function main() {
-  const store = await createStore();
+  // Хранилище не должно мешать сервису подняться: при недоступной базе работаем на файлах
+  // и громко объясняем в логах, что именно нужно исправить.
+  let store = await createStore().catch(async (e: Error) => {
+    console.error('[db] не удалось инициализировать хранилище:', e.message);
+    const mem = new MemoryKv(path.resolve(process.env.DATA_DIR || path.resolve(process.cwd(), 'data'), 'state.json'));
+    await mem.init();
+    return mem as KvStore;
+  });
   const app = express();
   app.set('trust proxy', 1);
   app.use(express.json({ limit: '1mb' }));

@@ -166,7 +166,11 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
 ```bash
 # 1. Сервис жив и подключён к базе
 curl -s https://<имя-сервиса>.onrender.com/api/health
-# {"ok":true,"store":"postgres","db":"postgres ok (N documents)",...}
+# Правильный ответ:
+# {"ok":true,"store":"postgres","storage":"postgres","db":"postgres ok (N documents)",...}
+#
+# Если видите "storage":"file-fallback (DATABASE_URL не сработал)" — база не подключилась,
+# в логах сервиса будет блок «PostgreSQL НЕДОСТУПЕН» с точной причиной и инструкцией.
 
 # 2. Фронтенд отдаётся (должен быть HTML с #root)
 curl -s https://<имя-сервиса>.onrender.com/ | head -c 200
@@ -224,8 +228,10 @@ curl -s -o /dev/null -w "%{http_code}\n" https://<имя-сервиса>.onrende
 
 | Симптом | Причина и решение |
 |---|---|
+| `fatal Error: getaddrinfo ENOTFOUND base` / любой `ENOTFOUND <слово>` при старте | В `DATABASE_URL` лежит **не строка подключения**, а что-то другое (имя базы, имя переменной, обрезанный фрагмент). Нужна полная строка `postgresql://user:пароль@dpg-xxxx-a/имя_базы` из **Connect → Internal Database URL**. Начиная с версии 1.1 сервис в этом случае не падает: в логах печатается подсказка, а игра продолжает работать на файловом хранилище |
 | `sh: 1: vite: not found` (сборка падает сразу после `npm install`) | Render собирает с `NODE_ENV=production`, а npm в этом режиме **не ставит devDependencies** — Vite и TypeScript лежат именно там. Решение: Build Command = `npm ci --include=dev && npm run build`. Дополнительно в репозитории есть `.npmrc` с `include=dev`, поэтому сборка проходит и с дефолтной командой Render. После правки нажмите **Clear build cache & deploy** |
 | `tsc: not found` при `npm run build:server` | Та же причина, что выше: TypeScript — devDependency. Лечится тем же `--include=dev` |
+| В игре всё работает, но прогресс исчезает после деплоя | `/api/health` показывает `"storage": "file-fallback (DATABASE_URL не сработал)"` — база не подключилась, смотрите в логах блок «PostgreSQL НЕДОСТУПЕН». Обычно: значение `DATABASE_URL` задано неверно, база в другом регионе или не задан `PGSSL=0` для внутреннего URL |
 | `401 unauthorized`, экран «Не удалось авторизоваться» | приложение открыто в браузере, а не в Telegram, либо `ALLOW_DEV_AUTH=0`. Откройте через бота; для локальной отладки поставьте `ALLOW_DEV_AUTH=1` |
 | `invalid_init_data` | `TELEGRAM_BOT_TOKEN` от другого бота. Токен и Mini App должны принадлежать одному боту |
 | Healthcheck падает, сервис перезапускается | не задан `DATABASE_URL` при `NODE_ENV=production`, либо неверный `PGSSL` (для внешнего URL нужен `1`) |

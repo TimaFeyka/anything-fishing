@@ -1,13 +1,16 @@
 /**
  * Сквозной smoke-тест HTTP API: авторизация, двухфазный вылов, идемпотентность,
  * дневные лимиты торговца, рынок игроков, база, рейтинги.
- * Запуск: node scripts/smoke.mjs [baseUrl] [dataFile]
+ * Запуск: node scripts/smoke.mjs <baseUrl> [dataFile] [databaseUrl]
+ * Если сервис работает на PostgreSQL, третьим аргументом (или через DATABASE_URL)
+ * передайте строку подключения — тест прочитает попытку прямо из таблицы kv.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
 const BASE = process.argv[2] ?? 'http://127.0.0.1:8787';
 const DATA_FILE = process.argv[3] ?? path.resolve('data', 'state.json');
+const DB_URL = process.argv[4] ?? process.env.DATABASE_URL ?? '';
 
 let pass = 0; let fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -32,13 +35,37 @@ async function login(devId, name) {
   return r.body.token;
 }
 
-function readCast(castId) {
-  try { return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')).casts?.[castId] ?? null; } catch { return null; }
+let pool = null;
+async function readCast(castId) {
+  // 1) файловое хранилище (локальный/dev-режим)
+  try {
+    const fromFile = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')).casts?.[castId];
+    if (fromFile) return fromFile;
+  } catch { /* файла ещё нет */ }
+  // 2) PostgreSQL — читаем ту же таблицу kv, что использует приложение
+  if (DB_URL) {
+    try {
+      if (!pool) {
+        const pg = (await import('pg')).default;
+        pool = new pg.Pool({
+          connectionString: DB_URL,
+          ssl: /sslmode=(require|verify|no-verify)/i.test(DB_URL) ? { rejectUnauthorized: false } : undefined,
+          max: 4,
+        });
+      }
+      const r = await pool.query("SELECT doc FROM kv WHERE bucket = 'casts' AND id = $1", [castId]);
+      return r.rows[0]?.doc ?? null;
+    } catch (e) {
+      console.warn('  (не удалось прочитать попытку из PostgreSQL:', e.message, ')');
+      return null;
+    }
+  }
+  return null;
 }
 async function waitCast(castId, timeoutMs = 8000) {
   const until = Date.now() + timeoutMs;
   while (Date.now() < until) {
-    const c = readCast(castId);
+    const c = await readCast(castId);
     if (c) return c;
     await new Promise((r) => setTimeout(r, 100));
   }
@@ -241,5 +268,6 @@ for (let i = 0; i < 34; i++) {
 }
 ok('работает ограничение частоты запросов', limited);
 
-console.log(`\nИтог: ${pass} успешно, ${fail} провалено\n`);
+console.log(`\nИтог: ${pass} успешно, ${fail} провалено (хранилище: ${DB_URL ? 'postgres' : 'file'})\n`);
+if (pool) await pool.end().catch(() => {});
 process.exit(fail ? 1 : 0);

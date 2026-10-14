@@ -19,6 +19,8 @@
     "test": "npm run build:server && node scripts/engine-test.mjs",
     "test:balance": "node scripts/balance-test.mjs",
     "test:ui": "node scripts/render-check.mjs",
+    "test:pg": "node scripts/pg-test.mjs",
+    "pg:server": "node scripts/pg-server.mjs",
     "test:api": "node scripts/smoke.mjs",
     "test:ws": "node scripts/ws-test.mjs",
     "smoke": "node scripts/smoke.mjs"
@@ -32,6 +34,8 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.9",
+    "@electric-sql/pglite-socket": "^0.2.12",
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.10",
