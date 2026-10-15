@@ -603,10 +603,31 @@ export function ItemArt({ kind, pal = ['#8fa3b0', '#33414d'], pat = 'none', size
   );
 }
 
-/** Сцена: вода, берег, камыш, поплавок. Всё — процедурный SVG. */
-export function WaterScene({ shore, location = 'lake', floatX = 50, floatY = 62, shadow = 0, glow = 0, ripples = 0, reel = false, className }: {
-  shore?: boolean; location?: string; floatX?: number; floatY?: number; shadow?: number; glow?: number; ripples?: number; reel?: boolean; className?: string;
-}) {
+export interface WaterSceneProps {
+  shore?: boolean;
+  location?: string;
+  phase?: 'idle' | 'hints' | 'fight' | 'result';
+  progress?: number;     // 0..1 - how close the fish is to the player
+  tension?: number;      // 0..1.4 - line tension
+  isReeling?: boolean;   // player actively reeling
+  kind?: string;         // 'calm' | 'pull' | 'surge' | 'run'
+  shadow?: number;       // silhouette width
+  glow?: number;
+  ripples?: number;
+  time?: number;         // fight time in ms
+  giant?: boolean;
+  landed?: boolean;
+  floatX?: number;
+  floatY?: number;
+  className?: string;
+}
+
+/** Сцена: вода, небо, динамический поплавок, плавающая и приближающаяся рыба с брызгами. */
+export function WaterScene({
+  shore, location = 'lake', phase = 'idle', progress = 0, tension = 0.2, isReeling = false,
+  kind = 'calm', shadow = 0, glow = 0, ripples = 0, time = 0, giant = false, landed = false,
+  floatX: manualX, floatY: manualY, className,
+}: WaterSceneProps) {
   const palettes: Record<string, [string, string, string]> = {
     lake: ['#0d2b23', '#12463a', '#2f7a63'],
     harbor: ['#101f2b', '#1b3a4d', '#3a6b8a'],
@@ -618,61 +639,232 @@ export function WaterScene({ shore, location = 'lake', floatX = 50, floatY = 62,
   };
   const [c1, c2, c3] = palettes[location] ?? palettes.lake;
   const uid = React.useId().replace(/[:]/g, '');
+
+  const p = Math.max(0, Math.min(1, progress));
+  const isFighting = phase === 'fight';
+  const isBiting = phase === 'hints';
+  const isLanded = phase === 'result' && landed;
+
+  // Динамические координаты рыбы и поплавка
+  // В бою: прогресс 0 = далеко в глубине озера (y=54), прогресс 1 = у самого берега/ног игрока (y=88)!
+  const struggleFreq = kind === 'run' ? 0.016 : kind === 'surge' ? 0.012 : 0.006;
+  const struggleAmp = (4 + (1 - p * 0.3) * 15) * (kind === 'surge' || kind === 'run' ? 1.6 : 1);
+  const swayX = isFighting ? Math.sin((time || 0) * struggleFreq) * struggleAmp : (isBiting ? Math.sin(Date.now() * 0.004) * 2.5 : 0);
+
+  const curX = manualX ?? Math.max(14, Math.min(86, 50 + swayX));
+  const curY = manualY ?? (isFighting ? (54 + p * 34) : isBiting ? (60 + Math.sin(Date.now() * 0.007) * 2) : 62);
+
+  // Масштаб рыбы растёт по мере её приближения к игроку
+  const fishScale = (0.42 + p * 1.15 + (giant ? 0.5 : 0)) * (shadow ? Math.max(0.75, shadow * 1.25) : 1);
+  const tailAngle = Math.sin((time || 0) * 0.026) * (isReeling ? 24 : 14);
+
+  // Натяжение лески: расслабленная (провисает), рабочая (натянута), опасная (вибрирует красным)
+  const isDanger = tension > 0.85;
+  const isSlack = tension < 0.15;
+  const lineVibe = isFighting && (isDanger || isReeling) ? Math.sin((time || 0) * 0.08) * 0.7 : 0;
+  const lineColor = isDanger ? '#ff5f6d' : isFighting ? (isSlack ? '#8fb0c2' : '#57d0ff') : '#dff3ff';
+
+  // Контрольная точка кривой лески (провисание или натяг)
+  const lineCtrlY = isSlack ? Math.min(94, curY + 12) : isDanger ? (curY * 0.45 + lineVibe) : (curY * 0.55 + (isFighting ? 0 : 4));
+
   return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className={className}>
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className={className} style={{ width: '100%', height: '100%' }}>
       <defs>
         <linearGradient id={`sky-${uid}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={c1} />
-          <stop offset="60%" stopColor={c2} />
+          <stop offset="55%" stopColor={c2} />
           <stop offset="100%" stopColor={c3} stopOpacity="0.9" />
         </linearGradient>
         <radialGradient id={`glow-${uid}`}>
-          <stop offset="0%" stopColor="#a8fff0" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="#a8fff0" stopOpacity="0" />
+          <stop offset="0%" stopColor="#57d0ff" stopOpacity="0.85" />
+          <stop offset="50%" stopColor="#00ffd5" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="#00ffd5" stopOpacity="0" />
         </radialGradient>
+        <radialGradient id={`shadow-${uid}`}>
+          <stop offset="0%" stopColor="#02090e" stopOpacity="0.85" />
+          <stop offset="60%" stopColor="#04121a" stopOpacity="0.5" />
+          <stop offset="100%" stopColor="#04121a" stopOpacity="0" />
+        </radialGradient>
+        <filter id={`blur-${uid}`}>
+          <feGaussianBlur stdDeviation="0.8" />
+        </filter>
       </defs>
+
+      {/* Небо */}
       <rect x="0" y="0" width="100" height="100" fill={`url(#sky-${uid})`} />
-      {/* луна/солнце */}
+
+      {/* Луна / солнце */}
       <circle cx="78" cy="18" r="7" fill="#dff3ff" opacity={0.25} />
-      {/* дальние холмы / город */}
+      <circle cx="78" cy="18" r="14" fill="#57d0ff" opacity={0.06} />
+
+      {/* Дальний план: горы или затонувшие здания */}
       {location === 'sunken' ? (
         <g opacity={0.5}>{[14, 30, 46, 62, 78].map((x, i) => <rect key={x} x={x} y={44 - (i % 3) * 3} width="12" height={14 + (i % 3) * 3} fill="#06181a" />)}</g>
       ) : (
         <path d="M0 46 C18 38 34 44 50 40 C66 36 84 44 100 40 L100 60 L0 60 Z" fill="#050f14" opacity={0.55} />
       )}
-      {/* вода */}
+
+      {/* Водная гладь */}
       <rect x="0" y="48" width="100" height="52" fill={c2} opacity={0.65} />
+
+      {/* Фоновые волны */}
       {[0, 1, 2, 3, 4, 5].map((i) => (
         <path key={i} d={`M0 ${54 + i * 8} C18 ${50 + i * 8} 32 ${58 + i * 8} 50 ${54 + i * 8} C68 ${50 + i * 8} 82 ${58 + i * 8} 100 ${54 + i * 8}`}
-          stroke="#bfe6ff" strokeWidth={0.5} fill="none" opacity={0.18 - i * 0.02} />
+          stroke="#bfe6ff" strokeWidth={0.45} fill="none" opacity={0.16 - i * 0.02} />
       ))}
-      {/* камыш / берег */}
+
+      {/* Береговые травы */}
       {shore && (
         <g>
           <path d="M0 92 C20 84 40 96 60 88 C76 82 90 92 100 88 L100 100 L0 100 Z" fill="#1a2a1e" />
           <path d="M6 84 C10 68 8 60 14 50 M16 86 C20 70 18 62 24 54 M26 88 C30 74 28 66 34 58" stroke="#22331f" strokeWidth={1.6} fill="none" />
         </g>
       )}
-      {/* круги на воде от следов */}
-      {ripples > 0 && [0, 1, 2].map((i) => (
-        <ellipse key={i} cx={floatX} cy={floatY + 6} rx={6 + i * 6 + ripples * 2} ry={2 + i * 2} fill="none" stroke="#dff3ff" strokeWidth={0.5} opacity={0.35 - i * 0.08} />
-      ))}
-      {/* тень под водой */}
-      {shadow > 0 && (
-        <ellipse cx={floatX} cy={floatY + 14} rx={6 + shadow * 26} ry={(3 + shadow * 9) * 0.7} fill="#04121a" opacity={0.5} />
+
+      {/* ─── АНИМАЦИЯ: ВОДНЫЙ КИЛЬВАТЕР И ПЕННЫЙ СЛЕД ЗА РЫБОЙ ─── */}
+      {isFighting && (
+        <g opacity={0.5 + p * 0.4}>
+          {/* Водный след, расходящийся назад от рыбы */}
+          <path d={`M${curX - 6 * fishScale} ${curY - 10 * fishScale} Q ${curX - 16 * fishScale} ${curY - 24 * fishScale} ${curX - 22 * fishScale} ${curY - 32 * fishScale}`}
+            stroke="#e0f4ff" strokeWidth={0.7} fill="none" opacity={0.45} strokeDasharray="3,2" />
+          <path d={`M${curX + 6 * fishScale} ${curY - 10 * fishScale} Q ${curX + 16 * fishScale} ${curY - 24 * fishScale} ${curX + 22 * fishScale} ${curY - 32 * fishScale}`}
+            stroke="#e0f4ff" strokeWidth={0.7} fill="none" opacity={0.45} strokeDasharray="3,2" />
+          {/* Пенные дуги за рыбой */}
+          <ellipse cx={curX} cy={curY - 6 * fishScale} rx={7 * fishScale} ry={2.2 * fishScale} fill="none" stroke="#e0f4ff" strokeWidth={0.6} opacity={0.6} />
+          {p > 0.4 && <ellipse cx={curX} cy={curY - 14 * fishScale} rx={12 * fishScale} ry={3.5 * fishScale} fill="none" stroke="#bfe6ff" strokeWidth={0.5} opacity={0.35} />}
+        </g>
       )}
-      {glow > 0 && <circle cx={floatX} cy={floatY + 8} r={10 + glow * 26} fill={`url(#glow-${uid})`} opacity={0.7} />}
-      {/* поплавок и леска */}
-      <g transform={reel ? 'rotate(4 50 62)' : undefined}>
-        <path d={`M4 12 C24 18 38 40 ${floatX} ${floatY - 6}`} stroke="#dff3ff" strokeWidth={0.6} fill="none" opacity={0.5} />
-        <ellipse cx={floatX} cy={floatY} rx={2.4} ry={3.4} fill={c3} />
-        <rect x={floatX - 0.6} y={floatY - 8} width="1.2" height="6" fill="#e0572a" />
+
+      {/* ─── АНИМАЦИЯ: КРУГИ И ПУЗЫРИ ПРИ ПОКЛЁВКЕ / ВЫВАЖИВАНИИ ─── */}
+      {(isBiting || (ripples > 0) || (isFighting && isReeling)) && [0, 1, 2].map((i) => (
+        <ellipse
+          key={i}
+          cx={curX}
+          cy={curY + (isFighting ? 2 : 5)}
+          rx={5 + i * (5 + p * 4) + (isBiting ? (Date.now() * 0.01 + i * 4) % 18 : 0)}
+          ry={1.8 + i * 1.5 + (isBiting ? ((Date.now() * 0.01 + i * 4) % 18) * 0.35 : 0)}
+          fill="none"
+          stroke="#dff3ff"
+          strokeWidth={0.6}
+          opacity={Math.max(0.08, 0.42 - i * 0.12)}
+        />
+      ))}
+
+      {/* Брызги при рывках или активном подтягивании */}
+      {isFighting && (isReeling || kind === 'surge' || kind === 'run') && (
+        <g opacity={0.85}>
+          <circle cx={curX - 4 * fishScale} cy={curY - 3 * fishScale} r={0.9 * fishScale} fill="#ffffff" />
+          <circle cx={curX + 5 * fishScale} cy={curY - 4 * fishScale} r={1.2 * fishScale} fill="#ffffff" />
+          <circle cx={curX - 7 * fishScale} cy={curY + 2 * fishScale} r={0.7 * fishScale} fill="#bfe6ff" />
+          <circle cx={curX + 8 * fishScale} cy={curY + 1 * fishScale} r={0.8 * fishScale} fill="#bfe6ff" />
+          <circle cx={curX + 1 * fishScale} cy={curY - 8 * fishScale} r={1.1 * fishScale} fill="#ffffff" />
+        </g>
+      )}
+
+      {/* Подводное свечение для редких/мифических находок */}
+      {(glow > 0 || giant) && (
+        <ellipse cx={curX} cy={curY + 4} rx={12 + glow * 24 + p * 12} ry={6 + glow * 12 + p * 6} fill={`url(#glow-${uid})`} opacity={0.65} />
+      )}
+
+      {/* ─── АНИМАЦИЯ: ПЛАВАЮЩАЯ И ПРИБЛИЖАЮЩАЯСЯ РЫБА ─── */}
+      {isFighting && (
+        <g
+          transform={`translate(${curX} ${curY}) rotate(${swayX * 1.4}) scale(${fishScale})`}
+          opacity={Math.min(0.96, 0.45 + p * 0.52)}
+        >
+          {/* Тень под рыбой на глубине */}
+          <ellipse cx="0" cy="4" rx="14" ry="6" fill={`url(#shadow-${uid})`} opacity={0.7} />
+
+          {/* Тело рыбы: плывёт вверх/навстречу игроку, голова обращена к леске */}
+          <g>
+            {/* Хвост рыбы, анимированно виляющий из стороны в сторону */}
+            <path
+              d={`M -3 -8 C ${tailAngle * 0.3} -14 ${tailAngle * 0.7} -20 ${tailAngle} -25 C ${tailAngle + 4} -23 ${tailAngle + 3} -17 3 -8 Z`}
+              fill="#061822"
+              stroke="#0a2a3c"
+              strokeWidth="0.8"
+              opacity={0.85}
+            />
+            {/* Плавники хвоста */}
+            <path
+              d={`M ${tailAngle - 5} -28 L ${tailAngle} -24 L ${tailAngle + 5} -28 L ${tailAngle + 2} -22 L ${tailAngle - 2} -22 Z`}
+              fill="#103a50"
+              opacity={0.8}
+            />
+            {/* Боковые грудные плавники */}
+            <path d="M -9 2 C -17 0 -16 -6 -9 -2 Z" fill="#0f3448" opacity={0.75} />
+            <path d="M 9 2 C 17 0 16 -6 9 -2 Z" fill="#0f3448" opacity={0.75} />
+
+            {/* Основное веретенообразное тело рыбы */}
+            <ellipse cx="0" cy="0" rx="9" ry="15" fill="#08202d" stroke="#1c4860" strokeWidth="0.9" />
+
+            {/* Подводный силуэт спинки и чешуйный отблеск */}
+            <path d="M 0 -10 C 2 -4 2 4 0 10" stroke="#387a9c" strokeWidth="1.2" strokeLinecap="round" opacity={0.65 + p * 0.3} />
+            <ellipse cx="0" cy="2" rx="4.5" ry="8" fill="#13384c" opacity={0.6} />
+
+            {/* Голова и морда, обращённая к крючку */}
+            <path d="M -5 8 C -3 15 3 15 5 8 Z" fill="#0b2838" />
+            <circle cx="-3.5" cy="8" r="1.2" fill="#dff3ff" opacity={0.8} />
+            <circle cx="3.5" cy="8" r="1.2" fill="#dff3ff" opacity={0.8} />
+            <circle cx="-3.5" cy="8" r="0.6" fill="#030a10" />
+            <circle cx="3.5" cy="8" r="0.6" fill="#030a10" />
+
+            {/* Точка соединения с крючком */}
+            <circle cx="0" cy="13" r="1.1" fill="#ffb038" opacity={0.9} />
+          </g>
+        </g>
+      )}
+
+      {/* Подводная тень при поклёвке (до начала боя) */}
+      {(isBiting || (!isFighting && shadow > 0)) && (
+        <g>
+          <ellipse cx={curX} cy={curY + 12} rx={6 + (shadow || 0.3) * 26} ry={(3 + (shadow || 0.3) * 9) * 0.7} fill="#04121a" opacity={0.55} filter={`url(#blur-${uid})`} />
+          {/* Контур рыбы в тени */}
+          <ellipse cx={curX + swayX} cy={curY + 11} rx={4 + (shadow || 0.3) * 16} ry={2.5 + (shadow || 0.3) * 6} fill="#02090e" opacity={0.75} />
+        </g>
+      )}
+
+      {/* ─── АНИМАЦИЯ: ВЫПРЫГИВАНИЕ РЫБЫ ИЗ ВОДЫ ПРИ УСПЕШНОМ ВЫЛОВЕ ─── */}
+      {isLanded && (
+        <g transform={`translate(${curX} 68) scale(1.6)`}>
+          {/* Всплеск воды */}
+          <ellipse cx="0" cy="14" rx="18" ry="5" fill="none" stroke="#dff3ff" strokeWidth="1.4" opacity={0.9} />
+          <ellipse cx="0" cy="14" rx="26" ry="7" fill="none" stroke="#57d0ff" strokeWidth="0.8" opacity={0.6} />
+          {/* Брызги во все стороны */}
+          {[-18, -12, -6, 0, 6, 12, 18].map((dx, i) => (
+            <circle key={i} cx={dx} cy={6 - Math.abs(dx) * 0.3 - (i % 2) * 4} r={1.2} fill="#ffffff" />
+          ))}
+          {/* Силуэт рыбы в прыжке */}
+          <path d="M -8 8 C -14 -6 0 -18 8 -8 C 4 2 -2 8 -8 8 Z" fill="#2b9ad6" stroke="#ffffff" strokeWidth="1" />
+          <path d="M 8 -8 L 15 -14 L 13 -6 Z" fill="#ffb038" />
+          <circle cx="-2" cy="-8" r="1.5" fill="#ffffff" />
+          <circle cx="-2" cy="-8" r="0.8" fill="#07131c" />
+        </g>
+      )}
+
+      {/* ─── ДИНАМИЧЕСКАЯ ЛЕСКА ─── */}
+      {/* Начинается с кончика удочки (4, 12) и соединяется точно с крючком/поплавком (curX, curY - 4) */}
+      <path
+        d={`M 4 12 Q ${curX * 0.45} ${lineCtrlY} ${curX} ${isFighting ? curY + 6 * fishScale : curY - 5}`}
+        stroke={lineColor}
+        strokeWidth={isDanger ? 1.05 : isFighting ? 0.75 : 0.6}
+        fill="none"
+        opacity={isFighting ? 0.88 : 0.55}
+        style={isDanger ? { filter: 'drop-shadow(0 0 3px #ff5f6d)' } : undefined}
+      />
+
+      {/* ─── ПОПЛАВОК ─── */}
+      {/* При рывках слегка притапливается, при натяжении наклоняется */}
+      <g transform={`translate(${curX} ${isFighting ? curY - 4 : curY}) ${isFighting ? `rotate(${swayX * 1.8} 0 0)` : ''}`}>
+        <ellipse cx="0" cy="0" rx="2.4" ry="3.4" fill={c3} stroke="#071a26" strokeWidth="0.4" />
+        <rect x="-0.6" y="-8" width="1.2" height="6" fill="#e0572a" />
+        <circle cx="0" cy="-8" r="0.9" fill="#ffffff" />
       </g>
     </svg>
   );
 }
 
-/** Простая иконка для навигации/магазина — тоже векторная. */
+/** Векторные иконки интерфейса. */
 export function Glyph({ name, size = 22, color = 'currentColor', style }: { name: string; size?: number; color?: string; style?: React.CSSProperties }) {
   const paths: Record<string, string> = {
     fish: 'M3 12c4-6 12-6 16-1-4 5-12 5-16 1Zm16-1 4-3v6l-4-3Z M7 11a1 1 0 1 0 2 0a1 1 0 0 0-2 0',
@@ -692,6 +884,12 @@ export function Glyph({ name, size = 22, color = 'currentColor', style }: { name
     check: 'M5 13l4 4L19 7',
     coin: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 4v10m3-7c0-1.7-1.3-2-3-2s-3 .3-3 2 1.3 2 3 2 3 .3 3 2-1.3 2-3 2-3-.3-3-2',
     share: 'M12 3v12M8 7l4-4 4 4M5 15v5h14v-5',
+    settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-2.8a8 8 0 0 0 0-2.4l2.1-1.6a.5.5 0 0 0 .1-.6l-2-3.5a.5.5 0 0 0-.6-.2l-2.5 1a8 8 0 0 0-2.1-1.2l-.4-2.6a.5.5 0 0 0-.5-.4h-4a.5.5 0 0 0-.5.4l-.4 2.6a8 8 0 0 0-2.1 1.2l-2.5-1a.5.5 0 0 0-.6.2l-2 3.5a.5.5 0 0 0 .1.6l2.1 1.6a8 8 0 0 0 0 2.4l-2.1 1.6a.5.5 0 0 0-.1.6l2 3.5a.5.5 0 0 0 .6.2l2.5-1a8 8 0 0 0 2.1 1.2l.4 2.6a.5.5 0 0 0 .5.4h4a.5.5 0 0 0 .5-.4l.4-2.6a8 8 0 0 0 2.1-1.2l2.5 1a.5.5 0 0 0 .6-.2l2-3.5a.5.5 0 0 0-.1-.6l-2.1-1.6Z',
+    bot: 'M12 2a2 2 0 0 1 2 2v1h1a4 4 0 0 1 4 4v7a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V9a4 4 0 0 1 4-4h1V4a2 2 0 0 1 2-2Zm-3 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm6 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm-5 4h4',
+    sparkle: 'M12 2l2.4 5.6L20 10l-5.6 2.4L12 18l-2.4-5.6L4 10l5.6-2.4L12 2Zm7 13l1.2 2.8L23 19l-2.8 1.2L19 23l-1.2-2.8L15 19l2.8-1.2L19 15Z',
+    wave: 'M2 12c3-4 6-4 9 0s6 4 9 0 M2 16c3-4 6-4 9 0s6 4 9 0',
+    sound: 'M11 5L6 9H2v6h4l5 4V5Zm4.5 3.5a5 5 0 0 1 0 7M19 6a9 9 0 0 1 0 12',
+    zap: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={style}>

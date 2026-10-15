@@ -55,6 +55,24 @@ export function wsUrl(castId: string): string {
 // ─────────────────────────────── состояние ───────────────────────────────
 interface Toast { id: number; text: string; kind: 'ok' | 'warn' | 'err' }
 
+export interface ClientSettings {
+  fishApproachAnim: boolean;
+  waterEffects: 'high' | 'eco';
+  aiTips: boolean;
+  aiGearWarning: boolean;
+  hapticsIntensity: 'light' | 'medium' | 'heavy';
+}
+
+const DEFAULT_SETTINGS: ClientSettings = {
+  fishApproachAnim: true,
+  waterEffects: 'high',
+  aiTips: true,
+  aiGearWarning: true,
+  hapticsIntensity: 'medium',
+};
+
+const CLIENT_SETTINGS_KEY = 'af.client_settings';
+
 interface AppCtx {
   player: any;
   content: any;
@@ -73,6 +91,10 @@ interface AppCtx {
   applyPlayer: (p: any) => void;
   baseView: string | null;
   setBaseView: (v: string | null) => void;
+  showSettings: boolean;
+  setShowSettings: (v: boolean) => void;
+  clientSettings: ClientSettings;
+  updateClientSettings: (part: Partial<ClientSettings>) => void;
 }
 
 const Ctx = createContext<AppCtx>(null as any);
@@ -88,7 +110,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useState('lake');
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [baseView, setBaseView] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [clientSettings, setClientSettings] = useState<ClientSettings>(() => {
+    try {
+      const saved = localStorage.getItem(CLIENT_SETTINGS_KEY);
+      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+    } catch { return DEFAULT_SETTINGS; }
+  });
   const seq = useRef(0);
+
+  const updateClientSettings = useCallback((part: Partial<ClientSettings>) => {
+    setClientSettings((prev) => {
+      const next = { ...prev, ...part };
+      try { localStorage.setItem(CLIENT_SETTINGS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
 
   const toast = useCallback((text: string, kind: Toast['kind'] = 'ok') => {
     const id = ++seq.current;
@@ -149,7 +186,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AppCtx>(() => ({
     player, content, museum, loading, fatal, tab, setTab, location, setLocation, toasts, toast, refresh, act, applyPlayer, baseView, setBaseView,
-  }), [player, content, museum, loading, fatal, tab, location, toasts, toast, refresh, act, applyPlayer, baseView]);
+    showSettings, setShowSettings, clientSettings, updateClientSettings,
+  }), [player, content, museum, loading, fatal, tab, location, toasts, toast, refresh, act, applyPlayer, baseView, showSettings, clientSettings, updateClientSettings]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

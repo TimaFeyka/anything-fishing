@@ -7,6 +7,7 @@ import { FishingScreen } from './screens/Fishing';
 import { MapScreen, CollectionScreen } from './screens/World';
 import { ShopScreen, ProfileScreen } from './screens/ShopProfile';
 import { BaseScreen } from './screens/Base';
+import { SettingsModal } from './screens/Settings';
 
 const TABS = [
   { id: 'fish', label: 'Рыбалка', icon: 'fish' },
@@ -17,7 +18,7 @@ const TABS = [
 ];
 
 export function App() {
-  const { loading, fatal, player, tab, setTab, baseView } = useApp();
+  const { loading, fatal, player, tab, setTab, baseView, showSettings, setShowSettings } = useApp();
 
   if (loading) {
     return (
@@ -69,6 +70,7 @@ export function App() {
           ))}
         </nav>
       )}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       <Toasts />
     </div>
   );

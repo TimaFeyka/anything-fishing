@@ -153,7 +153,7 @@ export function ShopScreen() {
 
 // ─────────────────────────────── ПРОФИЛЬ ───────────────────────────────
 export function ProfileScreen() {
-  const { player, content, act, toast, refresh } = useApp();
+  const { player, content, act, toast, refresh, setShowSettings, clientSettings, updateClientSettings } = useApp();
   const [board, setBoard] = useState<any>(null);
   const [tab, setTab] = useState<'stats' | 'bases' | 'serials' | 'about'>('stats');
 
@@ -303,33 +303,72 @@ export function ProfileScreen() {
 
       {tab === 'about' && (
         <>
-          <Section title="Настройки">
+          <Section
+            title="ИИ-Инструктор Antigravity"
+            right={<span className="pill" style={{ color: '#38bdf8', borderColor: '#38bdf8' }}><Glyph name="bot" size={12} /> Google DeepMind</span>}
+          >
+            <div className="card tight" style={{ background: 'linear-gradient(135deg, rgba(8,26,38,0.95), rgba(15,40,58,0.95))', borderColor: '#38bdf8', boxShadow: '0 0 16px -8px #38bdf8' }}>
+              <div className="row" style={{ gap: 10 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 12,
+                  background: 'linear-gradient(135deg, #06b6d4, #6366f1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 0 12px rgba(6,182,212,0.4)', flexShrink: 0,
+                }}>
+                  <Glyph name="bot" size={22} color="#ffffff" />
+                </div>
+                <div className="grow">
+                  <div className="row between">
+                    <b style={{ color: '#38bdf8', fontSize: 13 }}>Antigravity AI Fishing Core</b>
+                    <span className="badge-s" style={{ color: '#4ade80', fontSize: 10 }}>В СЕТИ</span>
+                  </div>
+                  <div className="dim" style={{ fontSize: 11, marginTop: 2 }}>
+                    Персональный бортовой ИИ-напарник: анализ глубин, подсказки по снастям и тактика вываживания.
+                  </div>
+                </div>
+              </div>
+              <div className="mt" style={{ paddingTop: 8, borderTop: '1px solid rgba(87,208,255,0.15)' }}>
+                <button
+                  className="btn primary block sm"
+                  onClick={() => { haptic.select(); setShowSettings(true); }}
+                  style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', boxShadow: '0 0 14px rgba(14,165,233,0.3)' }}
+                >
+                  <Glyph name="settings" size={15} /> Открыть Настройки и ИИ-Консультант
+                </button>
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Быстрые настройки">
             <div className="row between" style={{ padding: '6px 0' }}>
-              <span>Тактильная отдача</span>
-              <button className={`btn sm ${player.settings.haptics ? 'primary' : ''}`} onClick={() => toggle('haptics')}>{player.settings.haptics ? 'Вкл' : 'Выкл'}</button>
+              <span>Тактильная отдача (вибрация)</span>
+              <button className={`btn sm ${player.settings?.haptics ? 'primary' : ''}`} onClick={() => toggle('haptics')}>{player.settings?.haptics ? 'Вкл' : 'Выкл'}</button>
+            </div>
+            <div className="row between" style={{ padding: '6px 0' }}>
+              <span>Анимация движения рыбы к берегу</span>
+              <button className={`btn sm ${clientSettings?.fishApproachAnim ? 'primary' : ''}`} onClick={() => updateClientSettings?.({ fishApproachAnim: !clientSettings?.fishApproachAnim })}>
+                {clientSettings?.fishApproachAnim ? 'Вкл' : 'Выкл'}
+              </button>
             </div>
             <div className="row between" style={{ padding: '6px 0' }}>
               <span>Подсказки о редких находках</span>
-              <button className={`btn sm ${player.settings.confirmRare ? 'primary' : ''}`} onClick={() => toggle('confirmRare')}>{player.settings.confirmRare ? 'Вкл' : 'Выкл'}</button>
+              <button className={`btn sm ${player.settings?.confirmRare ? 'primary' : ''}`} onClick={() => toggle('confirmRare')}>{player.settings?.confirmRare ? 'Вкл' : 'Выкл'}</button>
             </div>
             <div className="row between" style={{ padding: '6px 0' }}>
               <span>Разрешить карточки находок</span>
-              <button className={`btn sm ${player.settings.share ? 'primary' : ''}`} onClick={() => toggle('share')}>{player.settings.share ? 'Вкл' : 'Выкл'}</button>
-            </div>
-            <div className="dim mt" style={{ fontSize: 11 }}>
-              Хаптика работает только на совместимых устройствах и полностью отключается. На устройствах без
-              поддержки игра продолжает работать без ограничений.
+              <button className={`btn sm ${player.settings?.share ? 'primary' : ''}`} onClick={() => toggle('share')}>{player.settings?.share ? 'Вкл' : 'Выкл'}</button>
             </div>
           </Section>
+
           <Section title="О игре">
-            <div className="kv"><span>Версия</span><span>1.0.0</span></div>
+            <div className="kv"><span>Версия</span><span>1.2.0 (Antigravity AI Edition)</span></div>
+            <div className="kv"><span>ИИ-помощник</span><span>Antigravity by Google DeepMind</span></div>
             <div className="kv"><span>Предметов в каталоге</span><span>{content?.items?.length ?? 0}</span></div>
             <div className="kv"><span>Локаций</span><span>{content?.locations?.length ?? 0}</span></div>
             <div className="kv"><span>Графика</span><span>векторная, без фотографий</span></div>
             <div className="dim mt" style={{ fontSize: 12 }}>
               ANYTHING FISHING — игра о рыбалке и исследовании неизвестного. Каждый заброс может принести
               что угодно: от плотвы до затонувшего сейфа, древнего механизма или инопланетного артефакта.
-              Результат вылова определяет сервер: клиент не может назначить себе редкость, серийный номер или цену.
             </div>
           </Section>
           <div className="row" style={{ gap: 8 }}>
