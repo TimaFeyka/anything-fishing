@@ -1,0 +1,27 @@
+[Unit]
+Description=Mirozdanie Anything Fishing authoritative game runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mirozdanie-fishing
+Group=mirozdanie-fishing
+WorkingDirectory=/opt/mirozdanie/games/anything-fishing/current
+EnvironmentFile=/etc/mirozdanie/anything-fishing.env
+ExecStart=/usr/bin/node --max-old-space-size=384 server/index.mjs
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+TasksMax=64
+LimitNOFILE=4096
+MemoryMax=768M
+
+[Install]
+WantedBy=multi-user.target

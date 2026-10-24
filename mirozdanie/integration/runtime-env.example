@@ -1,0 +1,9 @@
+NODE_ENV=production
+PORT=8792
+HOST=127.0.0.1
+DATABASE_URL=
+FISHING_PROXY_SECRET=
+FISHING_ALLOWED_ORIGINS=https://prozashitu-digital-immunity.timur-mazitovm.chatgpt.site
+PGSSL=0
+STARS_ENABLED=0
+ALLOW_DEV_AUTH=0

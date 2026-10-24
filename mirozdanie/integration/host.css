@@ -1,0 +1,5 @@
+/* The host owns messenger safe areas and fullscreen; this iframe owns game navigation. */
+:root{--safe-b:0px}
+.app{max-width:1100px;padding-top:48px}
+.fishing-return{position:fixed;z-index:100;top:4px;left:12px;min-height:40px;padding:6px 12px;border:1px solid #385362;border-radius:12px;color:#e8f7ff;background:#102834;font:600 14px system-ui;cursor:pointer}
+@media(max-width:640px){.app{max-width:none}.fishing-return{left:8px}}
