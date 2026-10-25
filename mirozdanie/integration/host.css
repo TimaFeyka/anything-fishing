@@ -3,3 +3,6 @@
 .app{max-width:1100px;padding-top:48px}
 .fishing-return{position:fixed;z-index:100;top:4px;left:12px;min-height:40px;padding:6px 12px;border:1px solid #385362;border-radius:12px;color:#e8f7ff;background:#102834;font:600 14px system-ui;cursor:pointer}
 @media(max-width:640px){.app{max-width:none}.fishing-return{left:8px}}
+
+.fishing-heading{align-items:flex-start}.fishing-heading>div:first-child{flex:1;min-width:0}.fishing-heading>div:last-child{flex:none;white-space:nowrap}.fishing-heading>div:last-child>*{flex-shrink:0}.fishing-heading>div:last-child svg{flex-shrink:0}
+@media(max-width:560px){.fishing-heading{flex-wrap:wrap;gap:8px}.fishing-heading>div:first-child{flex-basis:100%}.fishing-heading>div:last-child{margin-left:auto}.fishing-heading>div:last-child .pill{display:inline-flex;align-items:center;gap:4px}}
